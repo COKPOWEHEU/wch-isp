@@ -1,0 +1,140 @@
+.TH WCH-ISP 1 wch-isp\-0.1.0
+.SH NAME
+wch-isp \- firmware programmer for WCH microcontrollers
+.SH SYNOPSIS
+.B wch-isp
+.RI [ OPTIONS ]
+.I COMMAND
+.RI [ ARG ...]
+.SH DESCRIPTION
+.B wch-isp
+is an utility to write firmware into the flash of WCH microcontrollers, over USB or COM-port.
+By default the flash content is verified after writing.
+.SH OPTIONS
+.TP
+.B \-n
+Do not verify flash content after writing, verification is done by default.
+.TP
+.B \-p
+Prints a progress during command operation.
+.TP
+.B \-r
+Reset the microcontroller after the command is completed.
+.TP
+.B \-b
+Do not read database
+.TP
+.B \-f
+Ignore if firmware size more than cached flash size (program memory)
+.TP
+.B \-F
+Ignore if firmware size more than total flash size (program memory + const data memory)
+.TP
+.B \-d
+Enable debug information, print raw isp commands sent over USB or COM-port.
+.TP
+.B \-v
+Prints version information to stdout, then exits.
+.TP
+.B \-h, --help
+Prints help message to stdout, then exits.
+.TP
+.BI \--port= "PORT [baudrate]"
+Specify port to connect the device. It may be 'USB' or '/dev/ttyUSB0' or '//./COM2' or something else
+.TP
+.BI \--device= DEV
+Test if connected device is DEV and exit if they differ. <DEV> may be read by 'info' option.
+Example: --device=CH32V203G8R6
+.TP
+.BI \--uid= uid
+Select the microcontroller that matches the uid.
+.TP
+.BI \--reset= pin
+Specify COM-port control pin as RESET signal. May be RTS, DTR, nRTS or nDTR
+.TP
+.BI \--boot0= pin
+Specify COM-port control pin as Boot0 signal. May be RTS, DTR, nRTS or nDTR
+.TP
+.BI \--address= addr 
+Start writing from addr
+.SH COMMANDS
+.TP
+.B list
+List the currently detected compatible devices.
+.TP
+.BI write " FILE"
+Write
+.I FILE
+into flash, this will automatically erase sufficient flash sectors before writing to it.
+.TP
+.BI verify " FILE"
+Verify
+.I FILE
+content against the flash content.
+.TP
+.B erase
+Erase all the flash content (not implemented yet).
+.TP
+.B unlock
+Disable flash write protection (modifies the chip configuration) (not implemented yet)
+.TP
+.B info
+Print a device information and memory dump of the chip configuration.
+.TP
+.BI optionbytes " 'CMD'"
+change optionbytes
+ example: ./wch-isp optionbytes 'RDPR=0xA5, DATA0 = 0x42'
+.TP
+.BI optionshow " 'CMD'"
+show changes after apply CMD to optionbytes; Do not write
+.SH EXAMPLES
+.PP
+List detected devices:
+.PP
+.in +4n
+.EX
+.RB "$ " "wch-isp list"
+found 0x19 0x3B ( CH32V203G8R6 ), bt ver.0206 uid = [ CD-AB-1D-36-51-BC-3B-9E ]
+found 0x17 0x71 ( CH32V307RCT6 ), bt ver.0209 uid = [ 87-80-CB-26-3B-38-8D-DF ]
+.EE
+.in
+.PP
+Flash the
+.B firmware.bin
+file via USB,
+.B \-p
+enable the progress bar.
+.PP
+.in +4n
+.EX
+.RB "$ " "./wch-isp --port=USB -p write firmware.bin"
+Erase 1 sectors (1024 bytes)
+Write: 100.0 %   Write 792 bytes: DONE
+Verify: 100.0 %   Verify 792 bytes: DONE
+.EE
+.in
+.PP
+Verify the
+.B firmware.bin
+via COM-port (reset connected to RTS, Boot0 connected to DTR):
+.PP
+.in +4n
+.EX
+.RB "$ " "./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
+Verify 792 bytes: DONE
+
+.EE
+.in
+.PP
+Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
+.PP
+.in +4n
+.EX
+.RB "$ " "./wch-isp --port=/dev/tty_CH32_PROG_0 9600 optionbytes 'RDPR=0xA5 DATA0 = 0x42'"
+Option bytes write:
+  0x609F5AA5
+  0xFF00FF42
+  0xFFFFFFFF
+Done
+
+

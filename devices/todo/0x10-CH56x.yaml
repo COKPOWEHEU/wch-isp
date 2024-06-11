@@ -5,7 +5,7 @@ device_type: 0x10
 support_serial: true
 description: CH56x Series, RISC-V3A (CH569/CH565), ARM9 like (CH563/CH561), RISC (CH566/CH567/CH568) NDS32? (CH568)
 # Section 2.2.1 On-chip non-volatile memory map
-config_registers_ch569:
+config_registers_ch569: &config_registers_ch_565_ch569
   - offset: 0x00
     name: UNKNOWN0
     description: Reserved 32-bit word
@@ -89,8 +89,8 @@ variants:
   - name: CH561
     chip_id: 0x61
     alt_chip_ids: [0x46]
-    flash_size: 64k
-    eeprom_size: 28k
+    flash_size: 64K
+    eeprom_size: 28K
     support_usb: false
     support_net: true
 
@@ -99,46 +99,46 @@ variants:
     chip_id: 0x63
     # 0x45 for CH563_E?
     alt_chip_ids: [0x42, 0x43, 0x44, 0x45]
-    flash_size: 224k
-    eeprom_size: 28k
+    flash_size: 224K
+    eeprom_size: 28K
     support_usb: true
     support_net: true
 
   - name: CH565
     chip_id: 0x65
-    flash_size: 448k
-    eeprom_size: 32k
+    flash_size: 448K
+    eeprom_size: 32K
     support_usb: true
     support_net: false
     eeprom_start_addr: 0
-    config_registers: *config_registers_ch569
+    config_registers: *config_registers_ch_565_ch569
 
   - name: CH566
     chip_id: 0x66
-    flash_size: 64k
-    eeprom_size: 32k
+    flash_size: 64K
+    eeprom_size: 32K
     support_usb: true
     support_net: false
     eeprom_start_addr: 0
 
   - name: CH567
     chip_id: 0x67
-    flash_size: 192k
-    eeprom_size: 32k
+    flash_size: 192K
+    eeprom_size: 32K
     support_usb: true
     support_net: false
 
   - name: CH568
     chip_id: 0x68
-    flash_size: 192k
-    eeprom_size: 32k
+    flash_size: 192K
+    eeprom_size: 32K
     support_usb: true
     support_net: false
 
   - name: CH569
     chip_id: 0x69
-    flash_size: 448k
-    eeprom_size: 32k
+    flash_size: 448K
+    eeprom_size: 32K
     support_usb: true
     support_net: false
-    config_registers: *config_registers_ch569
+    config_registers: *config_registers_ch_565_ch569

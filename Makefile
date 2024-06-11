@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 VERSION = 0.1.0
+NAME := wch-isp
 
 # Install paths
 PREFIX = /usr/local
@@ -12,6 +13,7 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 endif
 
+CFLAGS += -DPREFIX=\"$(PREFIX)\" -DNAME=\"$(NAME)\"
 PKG_CONFIG = pkg-config
 
 ifneq ($(OPTIONS),small)
@@ -30,11 +32,11 @@ WCHISP_CFLAGS = -Wall -O2 $(INCS) $(CFLAGS)
 WCHISP_LDFLAGS = $(LIBS) $(LDFLAGS)
 
 SRC = main.c wch_if_usb.c wch_if_uart.c wch_yaml_parse.c
-#SRC = wch-isp.c
+#SRC = $(NAME).c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
-BIN = wch-isp
-MAN = wch-isp.1
+BIN = $(NAME)
+MAN = $(NAME).1
 DISTFILES = $(SRC) $(HDR) $(MAN) 50-wchisp.rules Makefile
 
 
@@ -55,6 +57,8 @@ install:
 	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
 	sed "s/VERSION/$(VERSION)/g" < $(MAN) > $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
 	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
+	mkdir -p $(DESTDIR)$(PREFIX)/share/$(NAME)
+	cp -a devices $(DESTDIR)$(PREFIX)/share/$(NAME)
 
 install-rules:
 	mkdir -p $(DESTDIR)$(UDEVPREFIX)/rules.d

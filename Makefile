@@ -13,7 +13,7 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 endif
 
-CFLAGS += -DPREFIX=\"$(PREFIX)\" -DNAME=\"$(NAME)\" -g
+#CFLAGS += -DPREFIX=\"$(PREFIX)\" -DNAME=\"$(NAME)\" -g
 PKG_CONFIG = pkg-config
 
 ifneq ($(OPTIONS),small)

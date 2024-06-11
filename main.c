@@ -9,10 +9,12 @@
 #ifndef NAME
   #define NAME "wch-isp"
 #endif
-#ifndef PREFIX
-  #define PREFIX "/usr"
+#ifdef PREFIX
+  #define DATABASE_PATH PREFIX "/share/" NAME "/devices"
+#else
+  #define DATABASE_PATH "devices"
 #endif
-#define DATABASE_PATH PREFIX "/share/" NAME "/devices"
+
 
 /*
  *  All readable and writable registers.

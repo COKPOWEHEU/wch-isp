@@ -39,23 +39,23 @@ Prints version information to stdout, then exits.
 .B \-h, --help
 Prints help message to stdout, then exits.
 .TP
-.B \--port=<PORT> [baudrate]
+.BI \--port= "PORT [baudrate]"
 Specify port to connect the device. It may be 'USB' or '/dev/ttyUSB0' or '//./COM2' or something else
 .TP
-.B \--device=<DEV>
+.BI \--device= DEV
 Test if connected device is DEV and exit if they differ. <DEV> may be read by 'info' option.
 Example: --device=CH32V203G8R6
 .TP
-.B \--uid=<uid>
+.BI \--uid= uid
 Select the microcontroller that matches the uid.
 .TP
-.B \--reset=<pin>
+.BI \--reset= pin
 Specify COM-port control pin as RESET signal. May be RTS, DTR, nRTS or nDTR
 .TP
-.B \--boot0=<pin>
+.BI \--boot0= pin
 Specify COM-port control pin as Boot0 signal. May be RTS, DTR, nRTS or nDTR
 .TP
-.B \--address=<addr>
+.BI \--address= addr 
 Start writing from addr
 .SH COMMANDS
 .TP
@@ -81,11 +81,11 @@ Disable flash write protection (modifies the chip configuration) (not implemente
 .B info
 Print a device information and memory dump of the chip configuration.
 .TP
-.BI optionbytes 'CMD'
+.BI optionbytes " 'CMD'"
 change optionbytes
  example: ./wch-isp optionbytes 'RDPR=0xA5, DATA0 = 0x42'
 .TP
-.BI optionshow 'CMD'
+.BI optionshow " 'CMD'"
 show changes after apply CMD to optionbytes; Do not write
 .SH EXAMPLES
 .PP

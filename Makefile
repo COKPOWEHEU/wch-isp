@@ -5,7 +5,7 @@ NAME := wch-isp
 # Install paths
 PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
-UDEVPREFIX = /etc/udev
+UDEVPREFIX = $(PREFIX)/lib/udev
 
 #make CROSS_COMPILE=i686-w64-mingw32- INCS="-Imingw32/include -Imingw32/include/libusb-1.0" LIBS="-Lmingw32/lib mingw32/bin/libusb-1.0.dll -lyaml"
 ifneq ($(CROSS_COMPILE),)
@@ -13,7 +13,7 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 endif
 
-CFLAGS += -DPREFIX=\"$(PREFIX)\" -DNAME=\"$(NAME)\"
+CFLAGS += -DPREFIX=\"$(PREFIX)\" -DNAME=\"$(NAME)\" -g
 PKG_CONFIG = pkg-config
 
 ifneq ($(OPTIONS),small)
@@ -37,10 +37,13 @@ HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = $(NAME)
 MAN = $(NAME).1
-DISTFILES = $(SRC) $(HDR) $(MAN) 50-wchisp.rules Makefile
+DISTFILES = $(SRC) $(HDR) *.man 50-wchisp.rules Makefile
 
 
-all: $(BIN)
+all: $(BIN) $(MAN)
+
+%.1:	%.man
+	sed "s/VERSION/$(VERSION)/g" < $< > $@
 
 small:
 	make OPTIONS="small" all
@@ -50,23 +53,18 @@ $(BIN): $(OBJ)
 .c.o:
 	$(CC) $(WCHISP_CFLAGS) $(WCHISP_CPPFLAGS) -c $<
 
-install:
-	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
-	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
-	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
-	sed "s/VERSION/$(VERSION)/g" < $(MAN) > $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
-	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
+install: all
+	install -D $(BIN) $(DESTDIR)$(PREFIX)/bin/${BIN}
+	install -m644 -D $(MAN) $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
 	mkdir -p $(DESTDIR)$(PREFIX)/share/$(NAME)
-	cp -a devices $(DESTDIR)$(PREFIX)/share/$(NAME)
-
-install-rules:
-	mkdir -p $(DESTDIR)$(UDEVPREFIX)/rules.d
-	cp -f 50-wchisp.rules $(DESTDIR)$(UDEVPREFIX)/rules.d
+	cp -a devices $(DESTDIR)$(PREFIX)/share/$(NAME)/
+	install -D 50-wchisp.rules $(DESTDIR)$(UDEVPREFIX)/rules.d/50-wchisp.rules
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
 	rm -f $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
+	rm -rf $(DESTDIR)$(PREFIX)/share/$(NAME)
+	rm -f $(DESTDIR)$(UDEVPREFIX)/rules.d/50-wchisp.rules
 
 dist:
 	mkdir -p $(BIN)-$(VERSION)
@@ -76,6 +74,6 @@ dist:
 	rm -rf $(BIN)-$(VERSION)
 
 clean:
-	rm -f $(OBJ) $(BIN)
+	rm -f $(OBJ) $(BIN) $(MAN)
 
-.PHONY: all install install-rules uninstall dist clean test
+.PHONY: all install uninstall dist clean test

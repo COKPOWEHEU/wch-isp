@@ -6,7 +6,13 @@
 #include "wch_if.h"
 #include "wch_yaml_parse.h"
 
-#define DATABASE_PATH "./devices"
+#ifndef NAME
+#define NAME "wch-isp"
+#endif
+#ifndef PREFIX
+#define PREFIX "/usr"
+#endif
+#define DATABASE_PATH PREFIX "/share/" NAME "/devices"
 
 /*
  *  All readable and writable registers.

@@ -1,0 +1,8 @@
+gitignore.txt
+.gitignore
+*.o
+*.1
+*~
+wch-isp
+test.sh
+mingw32

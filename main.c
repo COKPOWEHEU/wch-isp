@@ -7,12 +7,14 @@
 #include "wch_yaml_parse.h"
 
 #ifndef NAME
-#define NAME "wch-isp"
+  #define NAME "wch-isp"
 #endif
-#ifndef PREFIX
-#define PREFIX "/usr"
+#ifdef PREFIX
+  #define DATABASE_PATH PREFIX "/share/" NAME "/devices"
+#else
+  #define DATABASE_PATH "devices"
 #endif
-#define DATABASE_PATH PREFIX "/share/" NAME "/devices"
+
 
 /*
  *  All readable and writable registers.
@@ -369,6 +371,7 @@ static char dev_read_options(isp_dev_t dev){
 }
 
 void progressbar(char comment[], float per){
+  if(per>100)per=100;
   printf("\r%s%2.1f %%   ", comment, per);
   fflush(stdout);
 }
@@ -491,7 +494,9 @@ static char match_rtsdtr(wch_if_t self){
   return 1;
 }
 
+char *database_path = DATABASE_PATH;
 char *dev_uid = NULL;
+
 static char match_dev_list(wch_if_t self){
   isp_dev dev = {.id = 0, .type = 0};
   char *dev_name = NULL;
@@ -503,7 +508,7 @@ static char match_dev_list(wch_if_t self){
   
   wch_info_t *info = NULL;
   if(!run_flags.db_ignore){
-    info = wch_info_read_dir(DATABASE_PATH, 1, dev.type, dev.id);
+    info = wch_info_read_dir(database_path, 1, dev.type, dev.id);
     if(info == NULL){
       fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
     }
@@ -620,6 +625,7 @@ void help(char name[]){
   printf("\t--boot0=PIN  Use PIN as Boot0\n");
   printf("\t    'PIN' may be 'RTS', 'DTR', 'nRTS' or 'nDTR'\n");
   printf("\t--address=0x08000000\t Write or verify data from specified address\n");
+  printf("\t--database-path=/home/user/wch-isp/devices\tSearch device info in specified path\n");
   
   
   printf("\n");
@@ -708,6 +714,8 @@ int main(int argc, char **argv){
       run_flags.pin_boot = rtsdtr_decode( &argv[i][8] );
     }else if(StrEq(argv[i], "--address=")){
       sscanf(&argv[i][10], "%X", &writeaddr);
+    }else if(StrEq(argv[i], "--database-path=")){
+      database_path = &argv[i][16];
     }else
     //// COMMANDS //////////////////////
     if(StrEq(argv[i], "write")){
@@ -765,7 +773,7 @@ int main(int argc, char **argv){
   
   wch_info_t *info = NULL;
   if(!run_flags.db_ignore && run_flags.cmd != COMMAND_ERR){
-    info = wch_info_read_dir(DATABASE_PATH, 1, dev.type, dev.id);
+    info = wch_info_read_dir(database_path, 1, dev.type, dev.id);
     if(info == NULL){
       fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
       run_flags.cmd = COMMAND_ERR;

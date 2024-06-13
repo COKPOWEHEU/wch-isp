@@ -49,7 +49,7 @@ config_registers:
           0b00: CODE-192KB + RAM-128KB / CODE-128KB + RAM-64KB depending on the chip
           0b01: CODE-224KB + RAM-96KB / CODE-144KB + RAM-48KB depending on the chip
           0b10: CODE-256KB + RAM-64KB / CODE-160KB + RAM-32KB depending on the chip
-          0b11: CODE-228KB + RAM-32KB / CODE-160KB + RAM-32KB depending on the chip
+          0b11: CODE-288KB + RAM-32KB / CODE-160KB + RAM-32KB depending on the chip
 config_registers_static:
   # Ref: section "32.6 User option bytes" of RM manual
   - offset: 0x00

@@ -48,7 +48,7 @@ config_registers:
           0b00: CODE-192kB + RAM-128kB
           0b01: CODE-224kB + RAM-96kB
           0b10: CODE-256kB + RAM-64kB
-          0b11: CODE-228kB + RAM-32kB
+          0b11: CODE-288kB + RAM-32kB
   - offset: 0x04
     name: DATA
     description: Customizable 2 byte data, DATA0, nDATA0, DATA1, nDATA1

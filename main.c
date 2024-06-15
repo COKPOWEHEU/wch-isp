@@ -609,7 +609,6 @@ uint32_t port_speed = 0;
 char *dev_name = NULL;
 char *filename = NULL;
 char *optionstr = NULL;
-const char optstr_unlock_RDPR[] = "RDPR=0xA5";
 wch_if_debug debug_func = NULL;
 wch_if_match match_func = match_rtsdtr;
 uint32_t writeaddr = 0;
@@ -910,17 +909,28 @@ int main(int argc, char **argv){
       wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
       
       if(run_flags.cmd == COMMAND_UNLOCK){
+        optionstr = NULL;
         wch_regs_t *reg = NULL;
-        wch_bitfield_t *rdpr = NULL;
+        wch_bitfield_t *bits = NULL;
         char res = dev_read_options(&dev);
         if(!res){fprintf(stderr, "Reading option bytes from MCU: failed\n"); break;}
         wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
-        reg = wch_bitfield_byname(info, "RDPR", &rdpr);
-        if(reg!=NULL && rdpr != NULL){
-          uint32_t val = wch_bitfield_val(rdpr, reg->curval);
+        //Unlock via RDPR (set to 0xA5)
+        reg = wch_bitfield_byname(info, "RDPR", &bits);
+        if(reg!=NULL && bits != NULL){
+          uint32_t val = wch_bitfield_val(bits, reg->curval);
           if(val == 0xA5){printf("Device is already unlocked; Do nothing\n"); break;}
-          optionstr = (char*)optstr_unlock_RDPR;
-        }else{
+          optionstr = "RDPR=0xA5";
+        }
+        //Unlock via CFG_ROM_READ (set to 1)
+        reg = wch_bitfield_byname(info, "CFG_ROM_READ", &bits);
+        if(reg!=NULL && bits != NULL){
+          uint32_t val = wch_bitfield_val(bits, reg->curval);
+          if(val == 1){printf("Device is already unlocked; Do nothing\n"); break;}
+          optionstr = "CFG_ROM_READ=1";
+        }
+        
+        if(optionstr == NULL){
           printf("The unlocking method is unknown for this device; Do nothing\n");
           break;
         }

@@ -15,6 +15,22 @@
   #define DATABASE_PATH "devices"
 #endif
 
+#define __DATE_D__ ((__DATE__[4]-'0')*10 + (__DATE__[5]-'0'))
+#define __DATE_M__ (((__DATE__[1]=='a')&&(__DATE__[2]=='n'))?1: \
+                    (__DATE__[2]=='b')?2: \
+                    ((__DATE__[1]=='a')&&(__DATE__[2]=='r'))?3: \
+                    ((__DATE__[1]=='p')&&(__DATE__[2]=='r'))?4: \
+                    (__DATE__[2]=='y')?5: \
+                    ((__DATE__[1]=='u')&&(__DATE__[2]=='n'))?6: \
+                    (__DATE__[2]=='l')?7: \
+                    (__DATE__[2]=='g')?8: \
+                    (__DATE__[2]=='p')?9: \
+                    (__DATE__[2]=='t')?10: \
+                    (__DATE__[2]=='v')?11: \
+                    (__DATE__[2]=='c')?12: \
+                   0)
+#define __DATE_Y__ ((__DATE__[7]-'0')*1000 + (__DATE__[8]-'0')*100 + (__DATE__[9]-'0')*10 + (__DATE__[10]-'0'))
+
 
 /*
  *  All readable and writable registers.
@@ -601,6 +617,12 @@ uint32_t writeaddr = 0;
 
 void show_version(char name[]){
   printf("%s %s\n", name, VERSION);
+  printf("Build: %02i.%02i.%02i\n", __DATE_D__, __DATE_M__, __DATE_Y__);
+#ifdef BUILD_SMALL
+  printf("Reduced version: USB and database not supported\n");
+#else
+  printf("Full version\n");
+#endif
 }
 
 #ifndef BUILD_SMALL
@@ -646,7 +668,6 @@ void help(char name[]){
   printf("  OPTIONS:\n");
   printf("\t-v           Print version and exit\n");
   printf("\t-h, --help   Show this help and exit\n");
-  printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
   printf("\t--reset=PIN  Use PIN as RESET\n");
   printf("\t--boot0=PIN  Use PIN as Boot0\n");

@@ -75,5 +75,24 @@ dist:
 
 clean:
 	rm -f $(OBJ) $(BIN) $(MAN)
+	
+test:
+	@if [ $(PORT)"" = "" ] ; then \
+	  echo "examples: " ;\
+	  echo "make PORT=/dev/ttyUSB0 test"  ;\
+	  echo "./"$(BIN)" --port=USB info" ;\
+	  echo "./"$(BIN)" --port='//./COM3' --reset=RTS --boot0=DTR info" ;\
+	else \
+	  stty -F $(PORT) 300 ;\
+	  stty -F $(PORT) 50 ;\
+	  bash -c "echo 'RBU' > $(PORT)" ;\
+	  bash -c "echo 'rBU' > $(PORT)" ;\
+	  sleep 1 ;\
+	  ./$(BIN) --port=$(PORT) info ;\
+	  stty -F $(PORT) 50 ;\
+	  bash -c "echo 'RbU' > $(PORT)" ;\
+	  sleep 1 ;\
+	  bash -c "echo 'rbuz' > $(PORT)" ;\
+	fi
 
 .PHONY: all install uninstall dist clean test

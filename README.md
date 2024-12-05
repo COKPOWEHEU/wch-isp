@@ -25,6 +25,7 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
         --boot0=PIN  Use PIN as Boot0
             'PIN' may be 'RTS', 'DTR', 'nRTS' or 'nDTR'
         --address=0x08000000     Write or verify data from specified address
+        --database-path=/home/user/wch-isp/devices      Search device info in specified path
 
   COMMAND:
         write FILE    write file (.hex or .bin)

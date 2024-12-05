@@ -15,7 +15,7 @@
   #define DATABASE_PATH "devices"
 #endif
 
-#define __DATE_D__ ((__DATE__[4]-'0')*10 + (__DATE__[5]-'0'))
+#define __DATE_D__ (((__DATE__[4]==' '?'0':__DATE__[4])-'0')*10 + (__DATE__[5]-'0'))
 #define __DATE_M__ (((__DATE__[1]=='a')&&(__DATE__[2]=='n'))?1: \
                     (__DATE__[2]=='b')?2: \
                     ((__DATE__[1]=='a')&&(__DATE__[2]=='r'))?3: \

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
-VERSION = 0.1.1
+VERSION = 0.1.2
 NAME := wch-isp
 
 # Install paths
@@ -94,5 +94,21 @@ test:
 	  sleep 1 ;\
 	  bash -c "echo 'rbuz' > $(PORT)" ;\
 	fi
+	
+test2:
+	stty -F /dev/tty_STFLASH_0 300
+	stty -F /dev/tty_STFLASH_0 50
+	echo 'RBU' > /dev/tty_STFLASH_0
+	echo 'rBU' > /dev/tty_STFLASH_0
+	sleep 1
+	#./$(BIN) --port=/dev/tty_STFLASH_0 verify frm.hex
+	#./$(BIN) --port=/dev/tty_STFLASH_0 verify firmware.hex
+	./$(BIN) --port=/dev/tty_STFLASH_0 info
+	#./$(BIN) --port=/dev/tty_STFLASH_0 optionreset
+	#./$(BIN) --port=/dev/tty_STFLASH_0 optionbytes '0x40BF5AA5 00FF00FF FFFFFFFF'
+	stty -F /dev/tty_STFLASH_0 50
+	echo 'RbU' > /dev/tty_STFLASH_0
+	sleep 1
+	echo 'rbuz' > /dev/tty_STFLASH_0
 
 .PHONY: all install uninstall dist clean test

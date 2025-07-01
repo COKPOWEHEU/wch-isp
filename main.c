@@ -224,6 +224,24 @@ static size_t isp_cmd_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t len
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
+//   Global variables
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+static char match_rtsdtr(wch_if_t self);
+
+typedef char (*command_t)(isp_dev_t);
+char *port_name = "usb";
+uint32_t port_speed = 0;
+char *dev_name = NULL;
+char *filename = NULL;
+char *optionstr = NULL;
+wch_if_debug debug_func = NULL;
+wch_if_match match_func = match_rtsdtr;
+uint32_t writeaddr = 0;
+uint32_t hexaddr = 0;
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
 //   Read file
 ////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -259,15 +277,17 @@ static void file_read_bin(const char name[], size_t *sz, uint8_t **data){
   *data = buf;
 }
 
-static void file_read_hex(const char name[], size_t *sz, uint8_t **data){
+static void file_read_hex(const char name[], size_t *sz, uint8_t **data, uint32_t *resaddr){
   size_t size = 0;
   uint8_t *buf = NULL;
   int res;
+  size_t minaddr = 0;
   size_t maxaddr = 0;
+  uint32_t offset = 0;
   int line = 0;
   uint8_t linesize;
-  uint16_t lineaddr;
-  uint16_t newaddr;
+  uint32_t lineaddr;
+  uint32_t newaddr;
   uint8_t linecode;
   uint8_t linedata;
   uint8_t lrc;
@@ -275,27 +295,90 @@ static void file_read_hex(const char name[], size_t *sz, uint8_t **data){
   if(pf == NULL){fprintf(stderr, "file_read_hex, open [%s]: %s\n", name, strerror(errno)); return;}
   while(1){
     line++;
-    res = fscanf(pf, ":%2hhX%4hX%2hhX", &linesize, &lineaddr, &linecode);
+    res = fscanf(pf, ":%2hhX%4X%2hhX", &linesize, &lineaddr, &linecode);
+    //printf("%i: %.2X %.4X %.2X", line, linesize, lineaddr, linecode);
     if(res != 3)break;
-    if(linecode != 0)continue;
+    if(linecode != 0){
+      // 0 - data
+      // 1 - End Of File 
+      // 2 - Extended Segment Address (x86 only)
+      // 3 - Start Segment Address (x86 only)
+      // 4 - Extended Linear Address
+      // 5 - Start Linear Address 
+      if(linecode == 1)break; //End of file
+      if(linecode==3){
+        fprintf(stderr, "file_read_hex: x86 specific information in line %i\n", line);
+        if(buf)free(buf);
+        *sz = 0; *data = NULL; fclose(pf);
+        return;
+      }
+      if(linecode == 5)break; //Start address (not supported in bootloader)
+      if(linecode == 2){
+        uint32_t addr_H;
+        uint8_t lrc;
+        fscanf(pf, "%4X%2hhX\n", &addr_H, &lrc);
+        addr_H <<= 4;
+        offset = addr_H;
+        continue;
+      }
+      if(linecode == 4){
+        uint32_t addr_H;
+        uint8_t lrc;
+        fscanf(pf, "%4X%2hhX\n", &addr_H, &lrc);
+        addr_H <<= 16;
+        offset = addr_H;
+        continue;
+      }
+      fprintf(stderr, "file_read_hex: unknown information (code 0x%.2X) in line %i\n", linecode, line);
+      if(buf)free(buf);
+      *sz = 0; *data = NULL; fclose(pf);
+      return;
+    }
+    
     lrc = linesize;
     lrc += (lineaddr >> 0) & 0xFF;
     lrc += (lineaddr >> 8) & 0xFF;
+    lineaddr += offset;
     newaddr = lineaddr + linesize;
     //realloc
-    if(newaddr > size)size = newaddr;
-    if(newaddr > maxaddr){
-      size_t maxaddr_prev = maxaddr;
+    if(buf == NULL){
+      //printf("Set minaddr = 0x%.8X\n", lineaddr);
+      minaddr = lineaddr;
+      maxaddr = minaddr;
+    }
+    if(lineaddr < minaddr){
       uint8_t *buf_prev = buf;
-      maxaddr = (newaddr + 1023) &~1023; //round up to 1k
-      buf = realloc(buf_prev, maxaddr);
+      uint32_t diff = minaddr - lineaddr;
+      //printf("Realloc down 0x%.8X -> 0x%.8X\n", minaddr, lineaddr);
+      size_t newsize = size + diff;
+      buf = malloc(newsize);
       if(buf == NULL){
         if(buf_prev)free(buf_prev); 
         *sz = 0;
         *data = NULL;
         return;
       }
-      memset(&buf[maxaddr_prev], 0, (maxaddr - maxaddr_prev));
+      memset(buf, 0, newsize);
+      memcpy(buf + diff, buf_prev, size);
+      free(buf_prev);
+      minaddr = lineaddr;
+      size += diff;
+    }
+    
+    if(newaddr > size)size = newaddr - minaddr;
+    if(newaddr > maxaddr){
+      size_t maxaddr_prev = maxaddr;
+      uint8_t *buf_prev = buf;
+      maxaddr = (newaddr + 1023) &~1023; //round up to 1k
+      //printf("realloc 0x%.8X -> 0x%.8X\n", (maxaddr_prev - minaddr), (maxaddr - minaddr));
+      buf = realloc(buf_prev, (maxaddr - minaddr) );
+      if(buf == NULL){
+        if(buf_prev)free(buf_prev); 
+        *sz = 0;
+        *data = NULL;
+        return;
+      }
+      memset(&buf[maxaddr_prev-minaddr], 0, (maxaddr - maxaddr_prev));
     }
     //read data
     for(int i=0; i<linesize; i++){
@@ -306,7 +389,8 @@ static void file_read_hex(const char name[], size_t *sz, uint8_t **data){
         *sz = 0; *data = NULL; fclose(pf);
         return;
       }
-      buf[lineaddr + i] = linedata;
+      //printf("write %.8X\n", lineaddr + i - minaddr);
+      buf[lineaddr + i - minaddr] = linedata;
       lrc += linedata;
     }
     
@@ -324,11 +408,18 @@ static void file_read_hex(const char name[], size_t *sz, uint8_t **data){
       *sz = 0; *data = NULL; fclose(pf);
       return;
     }
+    //printf(" size = %.8X OK\n", size);
   }
   fclose(pf);
   size = flash_align(size);
   *sz = size;
   *data = buf;
+  
+  /*pf = fopen("temp.bin", "wb");
+  fwrite(buf, 1, size, pf);
+  fclose(pf);
+  printf("\n\n");
+  */
 }
 
 #ifdef _MSC_VER //not #if defined(_WIN32) || defined(_WIN64) because we have strncasecmp in mingw
@@ -339,7 +430,7 @@ static void file_read(const char name[], size_t *sz, uint8_t **data){
   size_t len = strlen(name);
   if(len < 4){fprintf(stderr, "Input file must me *.hex or *.bin\n"); *sz=0; *data=NULL; return;}
   if(strcasecmp(&name[len-4], ".hex")==0){
-    file_read_hex(name, sz, data);
+    file_read_hex(name, sz, data, &hexaddr);
   }else if(strcasecmp(&name[len-4], ".bin")==0){
     file_read_bin(name, sz, data);
   }else{
@@ -415,6 +506,7 @@ static char do_erase(isp_dev_t dev, size_t size){
 #define COMMAND_INFO	5
 #define COMMAND_OPTION	6
 #define COMMAND_OPTSHOW	7
+#define COMMAND_OPTIONRESET 8
 
 struct{
   unsigned int pin_rst:3;
@@ -426,6 +518,7 @@ struct{
   unsigned int db_ignore:1;
   unsigned int ignore_flash_size:1;
   unsigned int ignore_flash_total:1;
+  unsigned int ignore_hexaddr:1;
 }run_flags = {
   .pin_rst = PIN_NONE,
   .pin_boot= PIN_NONE,
@@ -436,6 +529,7 @@ struct{
   .db_ignore = 0,
   .ignore_flash_size = 0,
   .ignore_flash_total = 0,
+  .ignore_hexaddr = 0,
 };
 
 static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint8_t data[]){
@@ -603,16 +697,6 @@ int rtsdtr_decode(char *str){
   }
 }
 
-typedef char (*command_t)(isp_dev_t);
-char *port_name = "usb";
-uint32_t port_speed = 0;
-char *dev_name = NULL;
-char *filename = NULL;
-char *optionstr = NULL;
-wch_if_debug debug_func = NULL;
-wch_if_match match_func = match_rtsdtr;
-uint32_t writeaddr = 0;
-
 
 void show_version(char name[]){
   printf("%s %s\n", name, VERSION);
@@ -637,6 +721,7 @@ void help(char name[]){
   printf("\t-b           Do not read database\n");
   printf("\t-f           Ignore if firmware size more than cached flash size (program memory)\n");
   printf("\t-F           Ignore if firmware size more than total flash size (program memory + const data memory)\n");
+  printf("\t-a           Ignore difference between real address and HEX file address\n");
   printf("\t--port=USB   Specify port as USB (default)\n");
   printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
@@ -660,6 +745,7 @@ void help(char name[]){
   printf("\toptionbytes 'CMD' change optionbytes\n");
   printf("\t    example: %s optionbytes 'RDPR=0xA5, DATA0 = 0x42'\n", name);
   printf("\toptionshow 'CMD'  show changes after apply CMD to optionbytes; Do not write\n");
+  printf("\toptionreset       resets optionbytes to defaults\n");
 }
 #else
 void help(char name[]){
@@ -714,6 +800,7 @@ int main(int argc, char **argv){
           case 'b': run_flags.db_ignore = 1; break;
           case 'f': run_flags.ignore_flash_size=1; break;
           case 'F': run_flags.ignore_flash_total=1; break;
+          case 'a': run_flags.ignore_hexaddr=1; break;
           default: printf("Unknown option [-%c]\n", argv[i][j]); return -1;
         }
       }
@@ -762,6 +849,9 @@ int main(int argc, char **argv){
       run_flags.cmd = COMMAND_OPTSHOW;
       optionstr = argv[i+1];
       i++;
+    }else if(StrEq(argv[i], "optionreset")){
+      run_flags.cmd = COMMAND_OPTIONRESET;
+      optionstr = NULL;
     }else{
       fprintf(stderr, "Unknown command [%s]\n", argv[i]); return -1;
     }
@@ -824,6 +914,15 @@ int main(int argc, char **argv){
     }
     
     file_read(filename, &size, &data);
+    if((hexaddr != 0) && (hexaddr != writeaddr)){
+      if( !run_flags.ignore_hexaddr){
+        fprintf(stderr, "Firmware address does not match the address from the HEX file\n");
+        fprintf(stderr, "  use flag '-a' to ignore\n");
+        free(data);
+        data = NULL;
+        run_flags.cmd = COMMAND_ERR;
+      }
+    }
     //printf("file size = %zu\n", size);
     if(!run_flags.db_ignore){
       if(info->errflag || info->flash_size == 0){
@@ -841,8 +940,10 @@ int main(int argc, char **argv){
             run_flags.cmd = COMMAND_ERR;
           }
         }else{
-          fprintf(stderr, "WARNING: Firmware size (%zu kB) more then cached flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
-          fprintf(stderr, "  use flag '-f' to ignore\n");
+          if(!run_flags.ignore_flash_size){
+            fprintf(stderr, "WARNING: Firmware size (%zu kB) more then cached flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
+            fprintf(stderr, "  use flag '-f' to ignore\n");
+          }
           if(!run_flags.ignore_flash_total){
             free(data);
             data = NULL;
@@ -897,7 +998,7 @@ int main(int argc, char **argv){
   if(run_flags.cmd == COMMAND_INFO)command_info(&dev, info);
   
   do{
-    if(run_flags.cmd == COMMAND_OPTION || run_flags.cmd == COMMAND_OPTSHOW || run_flags.cmd == COMMAND_UNLOCK){
+    if(run_flags.cmd == COMMAND_OPTION || run_flags.cmd == COMMAND_OPTSHOW || run_flags.cmd == COMMAND_UNLOCK || run_flags.cmd == COMMAND_OPTIONRESET){
       if(info == NULL || info->errflag){
         fprintf(stderr, "Reading database failed but it necessary for correct execution of the command\n");
         break;
@@ -936,14 +1037,13 @@ int main(int argc, char **argv){
         }
       }
       
-      res = wch_info_modify(info, optionstr);
-      if(!res){fprintf(stderr, "Can not apply command '%s' to optionbytes\n", optionstr); break;}
-      
-      if(run_flags.cmd == COMMAND_OPTSHOW){
-        wch_info_show(info);
-      }else{
+      if(run_flags.cmd == COMMAND_OPTIONRESET){
+        printf("optionreset\n");
         uint32_t regs[3];
         uint8_t data[12];
+        wch_info_regs_export(info, regs, sizeof(regs)/sizeof(regs[0]));
+        printf("Current option bytes values:\n  0x%.8X\n  0x%.8X\n  0x%.8X\n", regs[0], regs[1], regs[2]);
+        info->reg_correct = 0;
         wch_info_regs_export(info, regs, sizeof(regs)/sizeof(regs[0]));
         data[0] = (regs[0] >> 0) & 0xFF; data[1] = (regs[0] >> 8) & 0xFF;
         data[2] = (regs[0] >>16) & 0xFF; data[3] = (regs[0] >>24) & 0xFF;
@@ -954,6 +1054,78 @@ int main(int argc, char **argv){
         //printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
         isp_cmd_write_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(data), data);
         printf("Option bytes write:\n  0x%.8X\n  0x%.8X\n  0x%.8X\nDone\n", regs[0], regs[1], regs[2]);
+        break;
+      }
+
+      if((optionstr[0] == '0') && (optionstr[1] == 'x')){
+        printf("HEX\n");
+        char errflag = 0;
+        uint32_t regs[3];
+        uint8_t data[12];
+        int pos = 2;
+        for(int i=0; i<3; i++){
+          regs[i] = 0;
+          char ch;
+          for(int j=0; j<8; j++){
+            ch = optionstr[pos];
+            if((ch>='0')&&(ch<='9')){
+              ch = ch - '0';
+            }else if((ch>='a')&&(ch<='f')){
+              ch = ch - 'a' + 0xA;
+            }else if((ch>='A')&&(ch<='F')){
+              ch = ch - 'A' + 0xA;
+            }else{
+              errflag = 1;
+            }
+            regs[i] = (regs[i]<<4) | ch;
+            pos++;
+            if(optionstr[pos]==' ')pos++;
+          }
+        }
+        
+        data[0] = (regs[0] >> 0) & 0xFF; data[1] = (regs[0] >> 8) & 0xFF;
+        data[2] = (regs[0] >>16) & 0xFF; data[3] = (regs[0] >>24) & 0xFF;
+        data[4] = (regs[1] >> 0) & 0xFF; data[5] = (regs[1] >> 8) & 0xFF;
+        data[6] = (regs[1] >>16) & 0xFF; data[7] = (regs[1] >>24) & 0xFF;
+        data[8] = (regs[2] >> 0) & 0xFF; data[9] = (regs[2] >> 8) & 0xFF;
+        data[10]= (regs[2] >>16) & 0xFF; data[11]= (regs[2] >>24) & 0xFF;
+        if(!errflag){
+          printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
+          if(run_flags.cmd != COMMAND_OPTSHOW){
+            isp_cmd_write_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(data), data);
+          }
+        }
+      }else{
+        res = wch_info_modify(info, optionstr);
+        if(!res){fprintf(stderr, "Can not apply command '%s' to optionbytes\n", optionstr); break;}
+        
+        if(run_flags.cmd == COMMAND_OPTSHOW){
+          wch_info_show(info);
+          /*uint32_t regs[3];
+          uint8_t data[12];
+          wch_info_regs_export(info, regs, sizeof(regs)/sizeof(regs[0]));
+          data[0] = (regs[0] >> 0) & 0xFF; data[1] = (regs[0] >> 8) & 0xFF;
+          data[2] = (regs[0] >>16) & 0xFF; data[3] = (regs[0] >>24) & 0xFF;
+          data[4] = (regs[1] >> 0) & 0xFF; data[5] = (regs[1] >> 8) & 0xFF;
+          data[6] = (regs[1] >>16) & 0xFF; data[7] = (regs[1] >>24) & 0xFF;
+          data[8] = (regs[2] >> 0) & 0xFF; data[9] = (regs[2] >> 8) & 0xFF;
+          data[10]= (regs[2] >>16) & 0xFF; data[11]= (regs[2] >>24) & 0xFF;
+          printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
+          */
+        }else{
+          uint32_t regs[3];
+          uint8_t data[12];
+          wch_info_regs_export(info, regs, sizeof(regs)/sizeof(regs[0]));
+          data[0] = (regs[0] >> 0) & 0xFF; data[1] = (regs[0] >> 8) & 0xFF;
+          data[2] = (regs[0] >>16) & 0xFF; data[3] = (regs[0] >>24) & 0xFF;
+          data[4] = (regs[1] >> 0) & 0xFF; data[5] = (regs[1] >> 8) & 0xFF;
+          data[6] = (regs[1] >>16) & 0xFF; data[7] = (regs[1] >>24) & 0xFF;
+          data[8] = (regs[2] >> 0) & 0xFF; data[9] = (regs[2] >> 8) & 0xFF;
+          data[10]= (regs[2] >>16) & 0xFF; data[11]= (regs[2] >>24) & 0xFF;
+          //printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
+          isp_cmd_write_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(data), data);
+          printf("Option bytes write:\n  0x%.8X\n  0x%.8X\n  0x%.8X\nDone\n", regs[0], regs[1], regs[2]);
+        }
       }
     }
   }while(0);
